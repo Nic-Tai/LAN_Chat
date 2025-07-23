@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAN Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 800px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            background: white;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .message-text {
+            font-size: 16px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+
+        .copy-btn:hover {
+            opacity: 1;
+        }
+
+        .input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #eee;
+            border-radius: 10px;
+            font-size: 16px;
+            resize: vertical;
+            min-height: 50px;
+            max-height: 150px;
+            font-family: inherit;
+        }
+
+        #messageInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        #sendBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        #sendBtn:hover {
+            transform: translateY(-2px);
+        }
+
+        #sendBtn:active {
+            transform: translateY(0);
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            background: #e3f2fd;
+            color: #1976d2;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            LAN Chat
+        </div>
+        <div class="status" id="status">
+            Ready to chat! Share messages across your LAN.
+        </div>
+        <div class="messages-container" id="messagesContainer">
+            <div class="empty-state">
+                No messages yet. Start typing to share your first message!
+            </div>
+        </div>
+        <div class="input-container">
+            <div class="input-group">
+                <textarea id="messageInput" placeholder="Type your message here... (Ctrl+Enter to send)"></textarea>
+                <button id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let messages = [];
+        let lastMessageId = 0;
+
+        const messagesContainer = document.getElementById('messagesContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const status = document.getElementById('status');
+
+        // Load messages from server
+        async function loadMessages() {
+            try {
+                const response = await fetch('/api/messages');
+                if (response.ok) {
+                    messages = await response.json();
+                    lastMessageId = messages.length > 0 ? Math.max(...messages.map(m => m.id)) : 0;
+                    renderMessages();
+                }
+            } catch (error) {
+                console.error('Failed to load messages:', error);
+                status.textContent = 'Failed to connect to server';
+            }
+        }
+
+        // Send message to server
+        async function sendMessage(text) {
+            try {
+                const response = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text })
+                });
+                
+                if (response.ok) {
+                    await loadMessages(); // Refresh messages
+                    return true;
+                } else {
+                    throw new Error('Failed to send message');
+                }
+            } catch (error) {
+                console.error('Failed to send message:', error);
+                status.textContent = 'Failed to send message';
+                return false;
+            }
+        }
+
+        // Render all messages
+        function renderMessages() {
+            if (messages.length === 0) {
+                messagesContainer.innerHTML = '<div class="empty-state">No messages yet. Start typing to share your first message!</div>';
+                return;
+            }
+
+            messagesContainer.innerHTML = messages.map(message => `
+                <div class="message">
+                    <div class="message-time">${new Date(message.timestamp).toLocaleString()}</div>
+                    <div class="message-text">${escapeHtml(message.text)}</div>
+                    <button class="copy-btn" onclick="copyMessage('${message.id}')">Copy</button>
+                </div>
+            `).join('');
+
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Add new message
+        async function addMessage(text) {
+            if (!text.trim()) return;
+
+            const success = await sendMessage(text);
+            if (success) {
+                messageInput.value = '';
+                
+                // Update status
+                status.textContent = `Message sent at ${new Date().toLocaleTimeString()}`;
+                setTimeout(() => {
+                    status.textContent = 'Ready to chat! Share messages across your LAN.';
+                }, 3000);
+            }
+        }
+
+        // Copy message to clipboard
+        function copyMessage(messageId) {
+            const message = messages.find(m => m.id == messageId);
+            if (message) {
+                navigator.clipboard.writeText(message.text).then(() => {
+                    status.textContent = 'Message copied to clipboard!';
+                    setTimeout(() => {
+                        status.textContent = 'Ready to chat! Share messages across your LAN.';
+                    }, 2000);
+                }).catch(() => {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = message.text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    status.textContent = 'Message copied to clipboard!';
+                    setTimeout(() => {
+                        status.textContent = 'Ready to chat! Share messages across your LAN.';
+                    }, 2000);
+                });
+            }
+        }
+
+        // Event listeners
+        sendBtn.addEventListener('click', () => {
+            addMessage(messageInput.value);
+        });
+
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                addMessage(messageInput.value);
+            }
+        });
+
+        // Auto-refresh to sync with other devices (check every 3 seconds)
+        setInterval(async () => {
+            const currentLength = messages.length;
+            await loadMessages();
+            
+            // Only show notification if new messages were added by others
+            if (messages.length > currentLength) {
+                const newCount = messages.length - currentLength;
+                status.textContent = `${newCount} new message${newCount > 1 ? 's' : ''} received`;
+                setTimeout(() => {
+                    status.textContent = 'Ready to chat! Share messages across your LAN.';
+                }, 2000);
+            }
+        }, 3000);
+
+        // Initialize
+        loadMessages();
+        messageInput.focus();
+    </script>
+</body>
+</html>
