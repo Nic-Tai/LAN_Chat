@@ -9,6 +9,9 @@ const PORT = 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
+// Trust proxy to get real IP addresses
+app.set('trust proxy', true);
+
 // Store messages in memory (in production, you'd use a database)
 let messages = [];
 let messageIdCounter = 0;
@@ -39,6 +42,15 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Get client IP
+app.get('/api/my-ip', (req, res) => {
+    const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || 
+                    (req.connection.socket ? req.connection.socket.remoteAddress : null) ||
+                    req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+    
+    res.json({ ip: clientIP.replace('::ffff:', '') });
+});
+
 // Get all messages
 app.get('/api/messages', (req, res) => {
     res.json(messages);
@@ -52,10 +64,16 @@ app.post('/api/messages', (req, res) => {
         return res.status(400).json({ error: 'Message text is required' });
     }
 
+    // Get client IP address
+    const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || 
+                    (req.connection.socket ? req.connection.socket.remoteAddress : null) ||
+                    req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+
     const message = {
         id: ++messageIdCounter,
         text: text.trim(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        senderIP: clientIP.replace('::ffff:', '') // Remove IPv6 prefix if present
     };
 
     messages.push(message);

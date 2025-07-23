@@ -46,14 +46,53 @@
             background: #f8f9fa;
         }
 
+        .messages-container::after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+
         .message {
-            background: white;
             margin: 10px 0;
             padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 18px;
             word-wrap: break-word;
             position: relative;
+            max-width: 70%;
+            clear: both;
+        }
+
+        .message.own {
+            background: linear-gradient(135deg, #007AFF 0%, #0051D5 100%);
+            color: white;
+            float: right;
+            margin-left: auto;
+            margin-right: 20px;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.other {
+            background: #E5E5EA;
+            color: black;
+            float: left;
+            margin-left: 20px;
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message-header {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .message.own .message-header {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .message.other .message-header {
+            color: rgba(0, 0, 0, 0.6);
         }
 
         .message-time {
@@ -70,21 +109,31 @@
 
         .copy-btn {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #667eea;
-            color: white;
+            top: 8px;
+            right: 8px;
             border: none;
-            padding: 5px 10px;
-            border-radius: 5px;
+            padding: 4px 8px;
+            border-radius: 12px;
             cursor: pointer;
-            font-size: 12px;
-            opacity: 0.7;
-            transition: opacity 0.3s;
+            font-size: 11px;
+            font-weight: 500;
+            transition: opacity 0.3s, transform 0.2s;
+            opacity: 0.6;
+        }
+
+        .message.own .copy-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .message.other .copy-btn {
+            background: rgba(0, 0, 0, 0.1);
+            color: #333;
         }
 
         .copy-btn:hover {
             opacity: 1;
+            transform: scale(1.05);
         }
 
         .input-container {
@@ -211,12 +260,26 @@
     <script>
         let messages = [];
         let lastMessageId = 0;
+        let currentClientIP = null;
 
         const messagesContainer = document.getElementById('messagesContainer');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const copyLastBtn = document.getElementById('copyLastBtn');
         const status = document.getElementById('status');
+
+        // Get current client IP
+        async function getCurrentIP() {
+            try {
+                const response = await fetch('/api/my-ip');
+                if (response.ok) {
+                    const data = await response.json();
+                    currentClientIP = data.ip;
+                }
+            } catch (error) {
+                console.error('Failed to get current IP:', error);
+            }
+        }
 
         // Load messages from server
         async function loadMessages() {
@@ -268,13 +331,24 @@
             // Enable copy last message button
             copyLastBtn.disabled = false;
 
-            messagesContainer.innerHTML = messages.map(message => `
-                <div class="message">
-                    <div class="message-time">${new Date(message.timestamp).toLocaleString()}</div>
-                    <div class="message-text">${escapeHtml(message.text)}</div>
-                    <button class="copy-btn" onclick="copyMessage('${message.id}')">Copy</button>
-                </div>
-            `).join('');
+            messagesContainer.innerHTML = messages.map(message => {
+                const isOwnMessage = message.senderIP === currentClientIP;
+                const messageClass = isOwnMessage ? 'own' : 'other';
+                const senderInfo = isOwnMessage ? 'You' : message.senderIP || 'Unknown';
+                
+                return `
+                    <div class="message ${messageClass}">
+                        <div class="message-header">
+                            ${senderInfo} • ${new Date(message.timestamp).toLocaleString()}
+                        </div>
+                        <div class="message-text">${escapeHtml(message.text)}</div>
+                        <button class="copy-btn" onclick="copyMessage('${message.id}')">Copy</button>
+                    </div>
+                `;
+            }).join('');
+
+            // Add clearfix div to handle floating elements
+            messagesContainer.innerHTML += '<div style="clear: both;"></div>';
 
             // Removed auto-scroll to prevent interference with text selection
         }
@@ -372,8 +446,13 @@
         }, 3000);
 
         // Initialize
-        loadMessages();
-        messageInput.focus();
+        async function initialize() {
+            await getCurrentIP();
+            await loadMessages();
+            messageInput.focus();
+        }
+
+        initialize();
     </script>
 </body>
 </html>
