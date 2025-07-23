@@ -95,6 +95,13 @@
             border-top: 1px solid #eee;
         }
 
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            justify-content: flex-end;
+        }
+
         .input-group {
             display: flex;
             gap: 10px;
@@ -137,6 +144,32 @@
             transform: translateY(0);
         }
 
+        #copyLastBtn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        #copyLastBtn:hover {
+            transform: translateY(-2px);
+        }
+
+        #copyLastBtn:active {
+            transform: translateY(0);
+        }
+
+        #copyLastBtn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .status {
             text-align: center;
             padding: 10px;
@@ -167,6 +200,9 @@
             </div>
         </div>
         <div class="input-container">
+            <div class="button-row">
+                <button id="copyLastBtn" disabled>Copy Last Message</button>
+            </div>
             <div class="input-group">
                 <textarea id="messageInput" placeholder="Type your message here... (Ctrl+Enter to send)"></textarea>
                 <button id="sendBtn">Send</button>
@@ -181,6 +217,7 @@
         const messagesContainer = document.getElementById('messagesContainer');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
+        const copyLastBtn = document.getElementById('copyLastBtn');
         const status = document.getElementById('status');
 
         // Load messages from server
@@ -226,8 +263,12 @@
         function renderMessages() {
             if (messages.length === 0) {
                 messagesContainer.innerHTML = '<div class="empty-state">No messages yet. Start typing to share your first message!</div>';
+                copyLastBtn.disabled = true;
                 return;
             }
+
+            // Enable copy last message button
+            copyLastBtn.disabled = false;
 
             messagesContainer.innerHTML = messages.map(message => `
                 <div class="message">
@@ -268,30 +309,47 @@
         function copyMessage(messageId) {
             const message = messages.find(m => m.id == messageId);
             if (message) {
-                navigator.clipboard.writeText(message.text).then(() => {
-                    status.textContent = 'Message copied to clipboard!';
-                    setTimeout(() => {
-                        status.textContent = 'Ready to chat! Share messages across your LAN.';
-                    }, 2000);
-                }).catch(() => {
-                    // Fallback for older browsers
-                    const textArea = document.createElement('textarea');
-                    textArea.value = message.text;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                    status.textContent = 'Message copied to clipboard!';
-                    setTimeout(() => {
-                        status.textContent = 'Ready to chat! Share messages across your LAN.';
-                    }, 2000);
-                });
+                copyToClipboard(message.text);
             }
+        }
+
+        // Copy last message to clipboard
+        function copyLastMessage() {
+            if (messages.length === 0) return;
+            
+            const lastMessage = messages[messages.length - 1];
+            copyToClipboard(lastMessage.text);
+        }
+
+        // Helper function to copy text to clipboard
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                status.textContent = 'Message copied to clipboard!';
+                setTimeout(() => {
+                    status.textContent = 'Ready to chat! Share messages across your LAN.';
+                }, 2000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                status.textContent = 'Message copied to clipboard!';
+                setTimeout(() => {
+                    status.textContent = 'Ready to chat! Share messages across your LAN.';
+                }, 2000);
+            });
         }
 
         // Event listeners
         sendBtn.addEventListener('click', () => {
             addMessage(messageInput.value);
+        });
+
+        copyLastBtn.addEventListener('click', () => {
+            copyLastMessage();
         });
 
         messageInput.addEventListener('keydown', (e) => {
